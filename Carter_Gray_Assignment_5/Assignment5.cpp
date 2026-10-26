@@ -11,9 +11,15 @@ Output: Console output displaying the filename, the initial puzzle grid, all dis
 Collaborators: Gemini
 Author: Aaron Hails
 Creation: 10/15/2026
-Revision: 10/15/2026
-Revision History: Initial creation.
+Revision: 10/26/2026
+Revision History: 
+1) Initial creation- 10/15/2026.
     Modifications to improve correctness, execution speed, space efficiency, and maintainability.
+2) adding soulutionsN.txt output -10/26/2026
+    modification include: printing function replace to also include file output, added to lines to solveRecursive
+    changed run function to include puzzle num, replaced processPuzzleFile to taking in the puzle and open the soulution file and write a line to it
+
+
 */
 
 #include <iostream>
@@ -47,9 +53,9 @@ private:
     uint16_t grid[SIZE][SIZE]; // 0 represents '_', 1-9 represent digits
 
     // Lookup tables for O(1) constraint checking (1-indexed for digits 1-9)
-    bool rowPresent[SIZE][SIZE + 1];
-    bool colPresent[SIZE][SIZE + 1];
-    bool blockPresent[SIZE][SIZE + 1];
+    bool rowPresent[SIZE][SIZE + 1] = {{false}};
+    bool colPresent[SIZE][SIZE + 1] = {{false}};
+    bool blockPresent[SIZE][SIZE + 1]= {{false}};
 
     // Maps (row, col) coordinates to one of the nine 3x3 sub-grids (0-8)
     int getBlockIndex(int row, int col) const {
@@ -214,19 +220,19 @@ public:
 
     /*
      * Prints the 9x9 Sudoku grid to the console, outputting '_' for 0.
-     * Authorship: Gemini
+     * Authorship: Replaced fully with claude from adding writing fucntions
      */
-    void print() const {
+    void print(std::ostream& out = std::cout) const {
         for (int r = 0; r < SIZE; ++r) {
             for (int c = 0; c < SIZE; ++c) {
                 if (grid[r][c] == 0) {
-                    std::cout << '_';
+                    out << '_';
                 } else {
-                    std::cout << grid[r][c];
+                    out << grid[r][c];
                 }
-                std::cout << (c < SIZE - 1 ? " " : "");
+                out << (c < SIZE - 1 ? " " : "");
             }
-            std::cout << "\n";
+            out << "\n";
         }
     }
 };
@@ -240,22 +246,31 @@ class SudokuSolver {
 private:
     SudokuBoard board;
     int solutionsCount;
+    std::ofstream solutionFile;
 
     /*
      * Recursive DFS method with backtracking. Finds the next empty cell starting
      * from (startRow, startCol), gathers candidates into a stack-allocated array,
      * and exhaustively tests each candidate.
-     * Authorship: Gemini
+     * Authorship: Gemini and claude code
      */
     bool solveRecursive(int startRow, int startCol) {
         int row = 0;
         int col = 0;
 
         // Base case: no empty cells remain, meaning a complete solution was found
+        
         if (!board.findEmptyCell(startRow, startCol, row, col)) {
             ++solutionsCount;
             std::cout << "\nSolution " << solutionsCount << ":\n";
-            board.print();
+            board.print(std::cout);
+            // added in rev 2 by claude code
+            if (solutionsCount > 1) {
+                solutionFile << "\n";
+            }
+            board.print(solutionFile);
+            
+            
             return true;
         }
 
@@ -289,9 +304,9 @@ public:
     /*
      * Loads a single puzzle file, reports file or format errors, prints the
      * initial puzzle, validates the initial clues, and runs the recursive solver.
-     * Authorship: Gemini
+     * Authorship: function replaced by claude code in revision 2 
      */
-    void processPuzzleFile(const std::string& filename) {
+    void processPuzzleFile(const std::string& filename, int puzzleNumber) {
         solutionsCount = 0;
         std::cout << "====================================\n";
         std::cout << filename << ":\n";
@@ -305,14 +320,27 @@ public:
             return;
         }
 
-        board.print();
+        board.print(std::cout);
 
-        if (!board.isInitialBoardValid() || !solveRecursive(0, 0)) {
+        std::string outputName = "solution" + std::to_string(puzzleNumber) + ".txt";
+        solutionFile.open(outputName);
+        if (!solutionFile.is_open()) {
+            std::cout << "Error: Unable to create file " << outputName << "\n";
+        }
+
+        bool solved = board.isInitialBoardValid() && solveRecursive(0, 0);
+
+        if (!solved) {
             std::cout << "\nNo solution found\n";
+            solutionFile << "No solution found.\n";
         } else {
             std::cout << "\nSolutions found: " << solutionsCount << "\n";
+            solutionFile << "\nSolutions found: " << solutionsCount << "\n";
         }
         std::cout << "\n";
+
+        solutionFile.close();
+        solutionFile.clear(); // Reset stream state so the next puzzle can reuse it
     }
 };
 
@@ -337,9 +365,10 @@ public:
         };
     }
 
+    // Authorship: function changed in rev 2 by caude code 
     void run() {
-        for (const std::string& filename : puzzleFiles) {
-            solver.processPuzzleFile(filename);
+        for (size_t i = 0; i < puzzleFiles.size(); ++i) {
+            solver.processPuzzleFile(puzzleFiles[i], static_cast<int>(i) + 1);
         }
     }
 };
