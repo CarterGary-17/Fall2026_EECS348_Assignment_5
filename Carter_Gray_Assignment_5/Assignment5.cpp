@@ -8,7 +8,9 @@ Input: Five text files (puzzle1.txt, puzzle2.txt, puzzle3.txt, puzzle4.txt, puzz
     9x9 space-separated grids of digits ('1'-'9') and underscores ('_') for empty cells.
 Output: Console output displaying the filename, the initial puzzle grid, all discovered solutions
     (plus total solution count), or an appropriate error / "No solution found" message.
-Collaborators: Gemini
+    In additition it also outputs a SolutionN.txt out file that includes the information outputed in the 
+    console
+Collaborators: Gemini, Claude
 Author: Aaron Hails
 Creation: 10/15/2026
 Revision: 10/26/2026
@@ -222,17 +224,17 @@ public:
      * Prints the 9x9 Sudoku grid to the console, outputting '_' for 0.
      * Authorship: Replaced fully with claude from adding writing fucntions
      */
-    void print(std::ostream& out = std::cout) const {
-        for (int r = 0; r < SIZE; ++r) {
-            for (int c = 0; c < SIZE; ++c) {
-                if (grid[r][c] == 0) {
-                    out << '_';
-                } else {
-                    out << grid[r][c];
+    void print(std::ostream& out = std::cout) const { //take an output defalt is console 
+        for (int r = 0; r < SIZE; ++r) {//loop  each row
+            for (int c = 0; c < SIZE; ++c) {//loop each col
+                if (grid[r][c] == 0) {//if 0 cell empty
+                    out << '_';//display an underscore for empty
+                } else { 
+                    out << grid[r][c];//write the digit in the cell
                 }
-                out << (c < SIZE - 1 ? " " : "");
+                out << (c < SIZE - 1 ? " " : "");// put a space between cells 
             }
-            out << "\n";
+            out << "\n";//end each row with a \n
         }
     }
 };
@@ -240,13 +242,13 @@ public:
 /*
  * SudokuSolver class encapsulating the recursive depth-first search (DFS)
  * with backtracking algorithm to find all solutions to a SudokuBoard.
- * Authorship: Gemini
+ * Authorship: Gemini, cladue code
  */
 class SudokuSolver {
 private:
     SudokuBoard board;
     int solutionsCount;
-    std::ofstream solutionFile;
+    std::ofstream solutionFile; // output file stream for this N puzzle
 
     /*
      * Recursive DFS method with backtracking. Finds the next empty cell starting
@@ -260,25 +262,25 @@ private:
 
         // Base case: no empty cells remain, meaning a complete solution was found
         
-        if (!board.findEmptyCell(startRow, startCol, row, col)) {
-            ++solutionsCount;
-            std::cout << "\nSolution " << solutionsCount << ":\n";
-            board.print(std::cout);
-            // added in rev 2 by claude code
-            if (solutionsCount > 1) {
-                solutionFile << "\n";
+        if (!board.findEmptyCell(startRow, startCol, row, col)) { //the base case
+            ++solutionsCount; //add this to solution count
+            std::cout << "\nSolution " << solutionsCount << ":\n";//label of sol
+            board.print(std::cout);// print the grid 
+            // added in rev 2 by claude code, for a black line that sperates conseutive sols
+            if (solutionsCount > 1) { //only need for >1 solu
+                solutionFile << "\n";//write a blank line
             }
-            board.print(solutionFile);
+            board.print(solutionFile);//write to solution file
             
             
-            return true;
+            return true;//return that a solution was found
         }
 
         uint16_t candidates[SudokuBoard::MAX_CANDIDATES];
         int candidateCount = board.getCandidates(row, col, candidates);
 
         if (candidateCount == 0) {
-            return false; // Dead end; trigger backtracking
+            return false; // dead end; trigger backtracking
         }
 
         bool foundSolutionInBranch = false;
@@ -292,10 +294,70 @@ private:
                 foundSolutionInBranch = true;
             }
 
-            board.setCell(row, col, 0); // Backtrack
+            board.setCell(row, col, 0); // backtrack
         }
 
         return foundSolutionInBranch;
+    }
+       /*
+     * Loads the puzzle from disk and reports any file or format error.
+     * Returns true if the puzzle loaded successfully, false otherwise.
+     */
+    bool loadPuzzle(const std::string& filename) {
+        LoadStatus status = board.loadFromFile(filename); // try to read 
+        if (status == LoadStatus::FILE_OPEN_ERROR) { // the file could not be opened
+            std::cout << "Error: Unable to open file " << filename << "\n\n";  // report an error 
+            return false;   // tell the caller loading failed
+        } else if (status == LoadStatus::FORMAT_ERROR) { // the file opened but its contents were wrong
+            std::cout << "Error: Bad file formatting in " << filename << "\n\n"; // report the error on the console
+            return false; //  loading failed
+        }
+        return true; // loaded no problems
+    }
+
+    /*
+     * opens solutionN.txt for the current puzzle and warns if it cannot be created
+     Authorship: claude code
+     */
+    void openSolutionFile(int puzzleNumber) {
+        std::string outputName = "solution" + std::to_string(puzzleNumber) + ".txt"; // build files
+        solutionFile.open(outputName); // create or open file
+        if (!solutionFile.is_open()) {// check that the file  opened
+            std::cout << "Error: Unable to create file " << outputName << "\n"; // warn on the console if it 
+        }
+    }
+
+    /*
+     * validates the initial clues, then runs the recursive search.
+     * returns true only if at least one solution was found
+     * Authorship: claude code
+     */
+    bool solvePuzzle() {
+        return board.isInitialBoardValid() && solveRecursive(0, 0); // skip the search 
+    }
+
+    /*
+     * writes the final summary to the console and to the solution file
+     Authorship: claude code
+     */
+    void reportResults(bool solved) {
+        if (!solved) {   // bad board or no solutions
+            std::cout << "\nNo solution found\n"; // console message
+            solutionFile << "No solution found.\n";// Ffle gets one line 
+        } else {// at least one solution was found
+            std::cout << "\nSolutions found: " << solutionsCount << "\n"; // print console total
+            solutionFile << "\nSolutions found: " << solutionsCount << "\n";   // file total
+        }
+        std::cout << "\n";// blank line after each puzzle on the console
+    }
+
+    /*
+     * closes the solution file and resets the stream so the next puzzle can reuse it
+     Authorship: claude code
+     */
+    void closeSolutionFile() {
+        solutionFile.close();// finish writing and release the file
+        solutionFile.clear(); // reset any error flags 
     }
 
 public:
@@ -307,41 +369,20 @@ public:
      * Authorship: function replaced by claude code in revision 2 
      */
     void processPuzzleFile(const std::string& filename, int puzzleNumber) {
-        solutionsCount = 0;
-        std::cout << "====================================\n";
-        std::cout << filename << ":\n";
+    solutionsCount = 0;     //reset the  counter 
+    std::cout << "====================================\n";  // console sep between puzzles
+    std::cout << filename << ":\n";  // show which puzzle
 
-        LoadStatus status = board.loadFromFile(filename);
-        if (status == LoadStatus::FILE_OPEN_ERROR) {
-            std::cout << "Error: Unable to open file " << filename << "\n\n";
-            return;
-        } else if (status == LoadStatus::FORMAT_ERROR) {
-            std::cout << "Error: Bad file formatting in " << filename << "\n\n";
-            return;
-        }
-
-        board.print(std::cout);
-
-        std::string outputName = "solution" + std::to_string(puzzleNumber) + ".txt";
-        solutionFile.open(outputName);
-        if (!solutionFile.is_open()) {
-            std::cout << "Error: Unable to create file " << outputName << "\n";
-        }
-
-        bool solved = board.isInitialBoardValid() && solveRecursive(0, 0);
-
-        if (!solved) {
-            std::cout << "\nNo solution found\n";
-            solutionFile << "No solution found.\n";
-        } else {
-            std::cout << "\nSolutions found: " << solutionsCount << "\n";
-            solutionFile << "\nSolutions found: " << solutionsCount << "\n";
-        }
-        std::cout << "\n";
-
-        solutionFile.close();
-        solutionFile.clear(); // Reset stream state so the next puzzle can reuse it
+    if (!loadPuzzle(filename)) {  // load and check the file stop if  failed
+        return;// skip this puzzle if failed
     }
+
+    board.print(std::cout); // show the initial puzzle on the console
+    openSolutionFile(puzzleNumber);  // open solutionN.txt for this puzzle
+    bool solved = solvePuzzle();   // validate and search return true if solu exist
+    reportResults(solved);   // write to the console and the file
+    closeSolutionFile();  // close the file 
+}
 };
 
 /*
@@ -366,9 +407,9 @@ public:
     }
 
     // Authorship: function changed in rev 2 by caude code 
-    void run() {
-        for (size_t i = 0; i < puzzleFiles.size(); ++i) {
-            solver.processPuzzleFile(puzzleFiles[i], static_cast<int>(i) + 1);
+    void run() { //run the solver on every puzzle
+        for (size_t i = 0; i < puzzleFiles.size(); ++i) { //the loop is now indexed to know the puzzle #
+            solver.processPuzzleFile(puzzleFiles[i], static_cast<int>(i) + 1); //thus 0 becomes puzzle one and index 1 becomes puzzle 2 and so on
         }
     }
 };
